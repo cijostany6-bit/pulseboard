@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PulseBoard - Amazon QuickSight Dashboards for Service Health Visualization'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: pulseboard
+  QuickSightUser:
+    Type: String
+    Default: cijostany6@gmail.com
+    Description: QuickSight user email for dashboard access
+
+Resources:
+  # QuickSight Data Source (CloudWatch)
+  CloudWatchDataSource:
+    Type: AWS::QuickSight::DataSource
+    Properties:
+      AwsAccountId: !Ref AWS::AccountId
+      DataSourceId: !Sub '${ProjectName}-cloudwatch-ds'
+      Name: !Sub '${ProjectName} CloudWatch Metrics'
+      Type: ATHENA
+      DataSourceParameters:
+        AthenaParameters:
+          WorkGroup: primary
+      Permissions:
+        - Principal: !Sub 'arn:aws:quicksight:${AWS::Region}:${AWS::AccountId}:user/default/${QuickSightUser}'
+          Actions:
+            - quicksight:DescribeDataSource
+            - quicksight:DescribeDataSourcePermissions
+            - quicksight:PassDataSource
+            - quicksight:UpdateDataSource
+            - quicksight:DeleteDataSource
+            - quicksight:UpdateDataSourcePermissions
+
+  # QuickSight Dataset (from CloudWatch via Athena)
+  PulseBoardDataset:
+    Type: AWS::QuickSight::DataSet
+    Properties:
+      AwsAccountId: !Ref AWS::AccountId
+      DataSetId: !Sub '${ProjectName}-dataset'
+      Name: !Sub '${ProjectName} Service Metrics'
+      ImportMode: SPICE
+      PhysicalTableMap:
+        cloudwatch:
+          CustomSql:
+            DataSourceArn: !GetAtt CloudWatchDataSource.Arn
+            Name: CloudWatchMetrics
+            SqlQuery: |
+              SELECT service, status, responseTime, cpu, memory, recordedAt
+              FROM cloudwatch_metrics
+              WHERE recordedAt >= date_add('day', -7, current_date)
+      Permissions:
+        - Principal: !Sub 'arn:aws:quicksight:${AWS::Region}:${AWS::AccountId}:user/default/${QuickSightUser}'
+          Actions:
+            - quicksight:DescribeDataSet
+            - quicksight:DescribeDataSetPermissions
+            - quicksight:PassDataSet
+            - quicksight:DescribeIngestion
+            - quicksight:ListIngestions
+            - quicksight:UpdateDataSet
+            - quicksight:DeleteDataSet
+            - quicksight:CreateIngestion
+            - quicksight:CancelIngestion
+            - quicksight:UpdateDataSetPermissions
+
+Outputs:
+  DataSourceArn:
+    Description: QuickSight CloudWatch Data Source ARN
+    Value: !GetAtt CloudWatchDataSource.Arn
+  DataSetId:
+    Description: QuickSight Dataset ID
+    Value: !Ref PulseBoardDataset

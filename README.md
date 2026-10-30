@@ -48,6 +48,7 @@ See [docs/architecture.md](docs/architecture.md) for detailed architecture.
 | CI/CD | Jenkins, GitHub Actions |
 | IaC | AWS CloudFormation |
 | Containers | Docker (multi-stage, non-root) |
+| BI / Dashboards | Amazon QuickSight |
 
 ## Quick Start (Local Dev)
 
@@ -90,11 +91,24 @@ PulseBoard/
 └── README.md
 ```
 
+## Monitoring Dashboard
+
+PulseBoard includes an Amazon QuickSight dashboard for real-time visualization:
+
+- **Service Health:** Green/red status for all 5 services
+- **Latency Trends:** Response time over the last hour
+- **Error Rates:** 5xx errors by service
+- **Resource Usage:** CPU and memory utilization
+- **Alert History:** Recent alerts with severity
+
+See [docs/quicksight-setup.md](docs/quicksight-setup.md) for setup instructions.
+
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Deployment Guide](docs/deployment.md)
 - [Contributing](docs/contributing.md)
+- [QuickSight Setup](docs/quicksight-setup.md)
 
 ## License
 
