@@ -58,3 +58,4 @@ credentials
 tmp/
 temp/
 .cache/
+.vercel
