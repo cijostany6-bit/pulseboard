@@ -91,6 +91,10 @@ PulseBoard/
 └── README.md
 ```
 
+## Learn PulseBoard
+
+New to PulseBoard? Check out the **[Interactive User Manual](learn/index.html)** — a step-by-step guide that teaches you everything from installation to troubleshooting. No coding experience required.
+
 ## Monitoring Dashboard
 
 PulseBoard includes an Amazon QuickSight dashboard for real-time visualization:
