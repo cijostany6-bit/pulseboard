@@ -69,11 +69,11 @@ make smoke-test
 
 Services will be available at:
 - Frontend: http://localhost:3000
-- API Gateway: http://localhost:8080
-- Auth Service: http://localhost:8081
-- Health Checker: http://localhost:8082
-- Metrics Collector: http://localhost:8083
-- Alert Manager: http://localhost:8084
+- API Gateway: http://localhost:9080
+- Auth Service: http://localhost:9081
+- Health Checker: http://localhost:9082
+- Metrics Collector: http://localhost:9083
+- Alert Manager: http://localhost:9084
 
 ## Project Structure
 
