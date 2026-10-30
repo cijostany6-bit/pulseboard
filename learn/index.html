@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PulseBoard — Learn & Use</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: #0f172a; color: #e2e8f0; min-height: 100vh; }
+    .header { background: #1e293b; padding: 16px 40px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; z-index: 100; flex-wrap: wrap; gap: 12px; }
+    .header h1 { font-size: 1.5rem; background: linear-gradient(135deg, #38bdf8, #818cf8); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+    .header .nav { display: flex; gap: 6px; flex-wrap: wrap; }
+    .header .nav button { background: #334155; color: #94a3b8; border: none; padding: 8px 14px; border-radius: 6px; cursor: pointer; font-size: 0.8rem; transition: all 0.2s; }
+    .header .nav button:hover { background: #475569; color: #e2e8f0; }
+    .header .nav button.active { background: #38bdf8; color: #0f172a; font-weight: 600; }
+    .container { max-width: 900px; margin: 0 auto; padding: 40px 20px; }
+    .section { display: none; }
+    .section.active { display: block; animation: fadeIn 0.3s; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .card { background: #1e293b; border-radius: 12px; padding: 24px; margin-bottom: 20px; border: 1px solid #334155; }
+    .card h2 { color: #38bdf8; font-size: 1.3rem; margin-bottom: 12px; }
+    .card h3 { color: #818cf8; font-size: 1.1rem; margin: 16px 0 8px; }
+    .card p { color: #94a3b8; line-height: 1.7; margin-bottom: 12px; }
+    .card ul { color: #94a3b8; line-height: 1.8; padding-left: 20px; }
+    .card li { margin-bottom: 6px; }
+    .card a { color: #38bdf8; }
+    .step { display: flex; gap: 16px; margin-bottom: 20px; }
+    .step-num { background: #38bdf8; color: #0f172a; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; }
+    .step-content { flex: 1; }
+    .step-content h3 { color: #e2e8f0; margin-bottom: 4px; }
+    .step-content p { color: #94a3b8; font-size: 0.9rem; margin-bottom: 8px; }
+    .code { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 16px; margin: 12px 0; position: relative; overflow-x: auto; }
+    .code pre { color: #a5f3fc; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 0.85rem; line-height: 1.6; white-space: pre-wrap; word-break: break-all; }
+    .code .copy { position: absolute; top: 8px; right: 8px; background: #334155; color: #94a3b8; border: none; padding: 4px 12px; border-radius: 4px; cursor: pointer; font-size: 0.75rem; }
+    .code .copy:hover { background: #475569; color: #e2e8f0; }
+    .code .copy.copied { background: #065f46; color: #6ee7b7; }
+    .btn { display: inline-block; padding: 10px 20px; border-radius: 8px; border: none; cursor: pointer; font-size: 0.9rem; font-weight: 600; transition: all 0.2s; text-decoration: none; margin: 4px; }
+    .btn-primary { background: #38bdf8; color: #0f172a; }
+    .btn-primary:hover { background: #0ea5e9; }
+    .btn-secondary { background: #334155; color: #e2e8f0; }
+    .btn-secondary:hover { background: #475569; }
+    .hero { text-align: center; padding: 60px 20px; }
+    .hero h1 { font-size: 3rem; background: linear-gradient(135deg, #38bdf8, #818cf8, #c084fc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; margin-bottom: 16px; }
+    .hero p { color: #94a3b8; font-size: 1.2rem; max-width: 600px; margin: 0 auto 30px; }
+    .hero .btns { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin: 30px 0; }
+    .feature { background: #1e293b; border-radius: 12px; padding: 20px; border: 1px solid #334155; }
+    .feature .icon { font-size: 2rem; margin-bottom: 8px; }
+    .feature h3 { color: #e2e8f0; margin-bottom: 4px; }
+    .feature p { color: #94a3b8; font-size: 0.9rem; }
+    .services { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 20px 0; }
+    .svc { background: #1e293b; border-radius: 8px; padding: 16px; border: 1px solid #334155; text-align: center; }
+    .svc .port { color: #38bdf8; font-size: 0.8rem; font-family: monospace; }
+    .svc .name { font-weight: 600; margin: 4px 0; }
+    .svc .desc { color: #64748b; font-size: 0.8rem; }
+    .trouble { background: #1e293b; border-radius: 8px; padding: 16px; margin: 8px 0; border-left: 4px solid #f59e0b; }
+    .trouble strong { color: #fbbf24; }
+    .trouble p { color: #94a3b8; font-size: 0.9rem; margin-top: 4px; }
+    .footer { text-align: center; padding: 40px 20px; color: #475569; font-size: 0.85rem; border-top: 1px solid #1e293b; margin-top: 40px; }
+    .footer a { color: #38bdf8; text-decoration: none; }
+    @media (max-width: 600px) {
+      .header { flex-direction: column; gap: 12px; padding: 12px 20px; }
+      .hero h1 { font-size: 2rem; }
+      .container { padding: 20px 12px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>🟢 PulseBoard</h1>
+    <div class="nav">
+      <button class="active" onclick="show('home')">Home</button>
+      <button onclick="show('install')">Install</button>
+      <button onclick="show('use')">Use It</button>
+      <button onclick="show('services')">Services</button>
+      <button onclick="show('trouble')">Troubleshoot</button>
+      <button onclick="show('faq')">FAQ</button>
+    </div>
+  </div>
+
+  <div class="container">
+
+    <!-- HOME -->
+    <div id="home" class="section active">
+      <div class="hero">
+        <h1>PulseBoard</h1>
+        <p>A free, open-source monitoring tool that watches your websites and apps and tells you when they break. No coding required to use it.</p>
+        <div class="btns">
+          <button class="btn btn-primary" onclick="show('install')">Get Started</button>
+          <a href="https://github.com/cijostany6-bit/pulseboard" class="btn btn-secondary" target="_blank">View on GitHub</a>
+        </div>
+      </div>
+
+      <div class="features">
+        <div class="feature">
+          <div class="icon">🔍</div>
+          <h3>Health Checks</h3>
+          <p>Automatically checks if your websites and APIs are up every 30 seconds.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">📊</div>
+          <h3>Live Dashboard</h3>
+          <p>See all your services at a glance with green/red status cards.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">🚨</div>
+          <h3>Alerts</h3>
+          <p>Get notified via Slack or email when something breaks.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">📈</div>
+          <h3>Metrics</h3>
+          <p>Track CPU, memory, and response time for each service.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">🆓</div>
+          <h3>Free & Open Source</h3>
+          <p>Runs on your computer. No subscriptions, no cloud costs.</p>
+        </div>
+        <div class="feature">
+          <div class="icon">🐳</div>
+          <h3>One Command Setup</h3>
+          <p>Start everything with a single command: docker-compose up</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>What Is PulseBoard?</h2>
+        <p>PulseBoard is like a <strong>security camera for your websites and apps</strong>. Instead of waiting for a customer to tell you "your site is down," PulseBoard checks automatically and tells you first.</p>
+        <p>It runs on your computer using Docker. No cloud account needed. No monthly fees. Just download, start, and monitor.</p>
+      </div>
+
+      <div class="card">
+        <h2>Who Is This For?</h2>
+        <ul>
+          <li><strong>Small business owners</strong> — Monitor your website uptime</li>
+          <li><strong>Freelancers</strong> — Watch client websites</li>
+          <li><strong>Students</strong> — Learn how monitoring works</li>
+          <li><strong>Developers</strong> — Monitor your APIs and microservices</li>
+          <li><strong>Anyone</strong> — Who wants to know if their site is up</li>
+        </ul>
+      </div>
+    </div>
+
+    <!-- INSTALL -->
+    <div id="install" class="section">
+      <div class="card">
+        <h2>Step 1: Install Prerequisites</h2>
+        <p>You need 3 things on your computer. Click the links to download.</p>
+
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3>Install Docker Desktop</h3>
+            <p>Download from <a href="https://www.docker.com/products/docker-desktop/" style="color:#38bdf8" target="_blank">docker.com</a>. Install it. Open it. Wait for it to say "Docker is running."</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h3>Install Git</h3>
+            <p>Download from <a href="https://git-scm.com/downloads" style="color:#38bdf8" target="_blank">git-scm.com</a>. Install with default settings.</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h3>Verify Installation</h3>
+            <p>Open Terminal (Mac) or Command Prompt (Windows) and run:</p>
+            <div class="code">
+              <button class="copy" onclick="copy(this)">Copy</button>
+              <pre>docker --version
+git --version
+            </div>
+            <p>You should see version numbers. If you see "command not found", the installation didn't work.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Step 2: Download PulseBoard</h2>
+        <div class="step">
+          <div class="step-num">1</div>
+          <div class="step-content">
+            <h3>Clone the repository</h3>
+            <p>Open Terminal and run:</p>
+            <div class="code">
+              <button class="copy" onclick="copy(this)">Copy</button>
+              <pre>git clone https://github.com/cijostany6-bit/pulseboard.git
+cd pulseboard
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">2</div>
+          <div class="step-content">
+            <h3>Start PulseBoard</h3>
+            <p>Run this single command:</p>
+            <div class="code">
+              <button class="copy" onclick="copy(this)">Copy</button>
+              <pre>docker-compose up -d
+            </div>
+            <p>Wait 10 seconds. Docker will download and start 8 containers.</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-num">3</div>
+          <div class="step-content">
+            <h3>Verify it's running</h3>
+            <div class="code">
+              <button class="copy" onclick="copy(this)">Copy</button>
+              <pre>./scripts/smoke-test.sh            </div>
+            <p>You should see a visual dashboard with green and red status cards.</p>
+          </div>
+        </div>
+      </div>
+            </div>
+            <p>This stops all containers and cleans up. Your data will be deleted.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>How To Use PulseBoard</h2>
+        <p>PulseBoard watches your websites and services. Here's how to add your own.</p>
+
+        <h3>Add A Website To Monitor</h3>
+        <div class="code">
+          <button class="copy" onclick="copy(this)">Copy</button>
+          <pre>curl -X POST http://localhost:9082/services \
+  -H "Content-Type: application/json" \
+  -d '{"name":"my-website","url":"https://your-website.com","interval":30000}'</pre>
+        </div>
+
+        <h3>Check Its Health Manually</h3>
+        <div class="code">
+          <button class="copy" onclick="copy(this)">Copy</button>
+          <pre>curl -X POST http://localhost:9082/check/my-website
+        <h3>Record Metrics</h3>
+        <div class="code">
+          <button class="copy" onclick="copy(this)">Copy</button>
+          <pre>curl -X POST http://localhost:9083/metrics \
+  -H "Content-Type: application/json" \
+  -d '{"service":"my-website","cpu":15.0,"memory":40.0,"responseTime":120}'</pre>
+        </div>
+
+        <h3>Create An Alert Rule</h3>
+        <div class="code">
+          <button class="copy" onclick="copy(this)">Copy</button>
+          <pre>curl -X POST http://localhost:9084/rules \
+  -H "Content-Type: application/json" \
+  -d '{"service":"my-website","condition":"status == unhealthy","channel":"slack"}'
+        <h3>View Alert History</h3>
+        <div class="code">
+          <button class="copy" onclick="copy(this)">Copy</button>
+          <pre>curl http://localhost:9084/history
+        <h3>Open The Dashboard</h3>
+        <p>Go to <strong>http://localhost:3000</strong> in your browser. You'll see:</p>
+        <ul>
+          <li>Green cards = healthy services</li>
+          <li>Red cards = unhealthy services</li>
+          <li>Yellow cards = unknown status</li>
+          <li>Response time bars for each service</li>
+          <li>CPU and memory usage</li>
+          <li>Recent alerts list</li>
+        </ul>
+        <p>The dashboard auto-refreshes every 5 seconds.</p>
+      </div>
+
+      <!-- SERVICES -->
+      <div id="services" class="section">
+        <div class="card">
+          <h2>The 5 Services Explained Simply</h2>
+          <p>PulseBoard has 5 small programs (services) that work together. Here's what each one does.</p>
+        </div>
+
+        <div class="services">
+          <div class="svc">
+            <div class="port">Port 9080</div>
+            <div class="name">API Gateway</div>
+            <div class="desc">The front door. Everyone enters through here.</div>
+          </div>
+          <div class="svc">
+            <div class="port">Port 9081</div>
+            <div class="name">Auth Service</div>
+            <div class="desc">The security guard. Checks if you're allowed in.</div>
+          </div>
+          <div class="svc">
+            <div class="port">Port 9082</div>
+            <div class="name">Health Checker</div>
+            <div class="desc">The doctor. Checks if all services are healthy.</div>
+          </div>
+          <div class="svc">
+            <div class="port">Port 9083</div>
+            <div class="name">Metrics Collector</div>
+            <div class="desc">The note-taker. Records CPU, memory, speed.</div>
+          </div>
+          <div class="svc">
+            <div class="port">Port 9084</div>
+            <div class="name">Alert Manager</div>
+            <div class="desc">The alarm. Screams when something breaks.</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>How They Talk To Each Other</h2>
+          <p>Imagine 5 robots in a room:</p>
+          <ul>
+            <li><strong>Health Checker (doctor)</strong> checks all robots and writes results on a whiteboard (Redis)</li>
+            <li><strong>Alert Manager (alarm)</strong> reads the whiteboard. If it sees "Robot 2 is broken," it screams</li>
+            <li><strong>Metrics Collector (note-taker)</strong> writes down numbers in a notebook (PostgreSQL)</li>
+            <li><strong>API Gateway (front door)</strong> lets you see everything on a screen (dashboard)</li>
+            <li><strong>Auth Service (security guard)</strong> checks if you're allowed to look at the screen</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h2>What's Inside (Database & Queue)</h2>
+          <div class="services">
+            <div class="svc">
+              <div class="port">Port 5432</div>
+              <div class="name">PostgreSQL</div>
+              <div class="desc">The notebook. Stores users, metrics, alerts.</div>
+            </div>
+            <div class="svc">
+              <div class="port">Port 6379</div>
+              <div class="name">Redis</div>
+              <div class="desc">The whiteboard. Passes messages between services.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TROUBLESHOOT -->
+      <div id="trouble" class="section">
+        <div class="card">
+          <h2>Troubleshooting</h2>
+          <p>Common problems and how to fix them.</p>
+        </div>
+
+        <div class="trouble">
+          <strong>"port already allocated"</strong>
+          <p>Something else is using that port. Run: <code>lsof -i :9080</code> to find what's using it. Either stop that program or change the port in docker-compose.yml.</p>
+        </div>
+
+        <div class="trouble">
+          <strong>"Docker daemon not running"</strong>
+          <p>Docker Desktop is not open. Open Docker Desktop and wait for it to say "Docker is running." On Mac, you can also run <code>colima start</code> in terminal.</p>
+        </div>
+
+        <div class="trouble">
+          <strong>"Connection refused" or "HTTP 000"</strong>
+          <p>Services need 10-15 seconds to start. Wait a bit and try again. Or check logs: <code>docker-compose logs health-checker</code></p>
+        </div>
+
+        <div class="trouble">
+          <strong>"Container unhealthy"</strong>
+          <p>Check the logs: <code>docker-compose logs &lt;service-name&gt;</code>. Common cause: missing dependencies or port conflicts.</p>
+        </div>
+
+        <div class="trouble">
+          <strong>"npm install failed"</strong>
+          <p>The Dockerfile couldn't install packages. Rebuild without cache: <code>docker-compose build --no-cache</code></p>
+        </div>
+
+        <div class="trouble">
+          <strong>"Cannot connect to Docker"</strong>
+          <p>Make sure Docker Desktop is running. Check with: <code>docker info</code>. If it fails, restart Docker Desktop.</p>
+        </div>
+
+        <div class="trouble">
+          <strong>"Permission denied" on scripts</strong>
+          <p>Make scripts executable: <code>chmod +x scripts/*.sh
+        <div class="trouble">
+          <strong>"Page not loading at localhost:3000"</strong>
+          <p>Hard refresh your browser (Cmd+Shift+R on Mac). Or try incognito mode. The frontend container might need a rebuild: <code>docker-compose build --no-cache frontend && docker-compose up -d frontend
+      </div>
+
+      <!-- FAQ -->
+      <div id="faq" class="section">
+        <div class="card">
+          <h2>Frequently Asked Questions</h2>
+        </div>
+
+        <div class="card">
+          <h3>What is PulseBoard?</h3>
+          <p>PulseBoard is a free, open-source tool that monitors your websites and apps. It checks if they're up, collects performance numbers, and alerts you when something breaks. Think of it as a security camera for your software.</p>
+        </div>
+
+        <div class="card">
+          <h3>Do I need to know coding to use it?</h3>
+          <p>No. You just need to install Docker and run one command. The dashboard is visual — green means healthy, red means broken. No coding required.</p>
+        </div>
+
+        <div class="card">
+          <h3>Is it free?</h3>
+          <p>Yes. 100% free and open source. It runs on your computer. No subscriptions, no cloud costs, no monthly fees.</p>
+        </div>
+
+        <div class="card">
+          <h3>Can I monitor my own website?</h3>
+          <p>Yes. Add your website URL using a simple curl command. PulseBoard will check it every 30 seconds and alert you if it goes down.</p>
+        </div>
+
+        <div class="card">
+          <h3>What if I don't have Docker?</h3>
+          <p>Docker is required. It's free to download from docker.com. It runs on Mac, Windows, and Linux. The installation takes about 5 minutes.</p>
+        </div>
+
+        <div class="card">
+          <h3>Can I use this for my business?</h3>
+          <p>Yes. It's open source (MIT license). You can use it commercially. Many small businesses use it to monitor their websites.</p>
+        </div>
+
+        <div class="card">
+          <h3>How is this different from UptimeRobot or Pingdom?</h3>
+          <p>Those are cloud services that cost money and only check if your site is up. PulseBoard also collects metrics (CPU, memory, response time), has alerting rules, and runs on your own computer for free. Plus you can customize it however you want.</p>
+        </div>
+
+        <div class="card">
+          <h3>Can I deploy this to AWS?</h3>
+          <p>Yes. The project includes CloudFormation templates and a Jenkins pipeline. But for most users, running it locally with Docker is enough.</p>
+        </div>
+
+        <div class="card">
+          <h3>What happens to my data?</h3>
+          <p>All data stays on your computer. Nothing is sent to the cloud. When you stop PulseBoard, the data is deleted (unless you configure persistent storage).</p>
+        </div>
+
+        <div class="card">
+          <h3>How do I update PulseBoard?</h3>
+          <p>Run: <code>git pull origin main</code> then <code>docker-compose up -d --build
+        <div class="card">
+          <h3>Where can I get help?</h3>
+          <p>Open an issue on GitHub: <a href="https://github.com/cijostany6-bit/pulseboard/issues" style="color:#38bdf8" target="_blank">github.com/cijostany6-bit/pulseboard/issues</a></p>
+        </div>
+      </div>
+
+      <div class="footer">
+        PulseBoard — Open Source Monitoring Platform<br>
+        Built by <a href="https://github.com/cijostany6-bit">Cijo Stany John</a> | 
+        <a href="https://github.com/cijostany6-bit/pulseboard">GitHub</a> | 
+        MIT License
+      </div>
+    </div>
+
+    <script>
+      function show(id) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.nav button').forEach(b => b.classList.remove('active'));
+        document.getElementById(id).classList.add('active');
+        event.target.classList.add('active');
+      }
+
+      function copy(btn) {
+        const code = btn.nextElementSibling.textContent;
+        navigator.clipboard.writeText(code).then(() => {
+          btn.textContent = 'Copied!';
+          btn.classList.add('copied');
+          setTimeout(() => {
+            btn.textContent = 'Copy';
+            btn.classList.remove('copied');
+          }, 2000);
+        });
+      }
+    </script>
+  </body>
+</html>
