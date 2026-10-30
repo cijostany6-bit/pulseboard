@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-and-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [api-gateway, auth-service, health-checker, metrics-collector, alert-manager]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install deps
+        working-directory: services/${{ matrix.service }}
+        run: npm ci
+      - name: Lint
+        working-directory: services/${{ matrix.service }}
+        run: npm run lint --if-present
+      - name: Test
+        working-directory: services/${{ matrix.service }}
+        run: npm test --if-present
+
+  build-images:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build images
+        run: ./scripts/build-all.sh

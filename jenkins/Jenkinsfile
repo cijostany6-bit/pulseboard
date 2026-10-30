@@ -1,0 +1,186 @@
+pipeline {
+    agent any
+
+    environment {
+        AWS_REGION = 'eu-central-1'
+        ECR_REGISTRY = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+        EKS_CLUSTER = 'pulseboard-cluster'
+        K8S_NAMESPACE = 'pulseboard'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+                script {
+                    env.GIT_COMMIT_SHORT = sh(script: 'git rev-parse --short HEAD', returnStdout: true).trim()
+                    env.IMAGE_TAG = "${env.GIT_COMMIT_SHORT}"
+                }
+            }
+        }
+
+        stage('Lint & Test') {
+            parallel {
+                stage('API Gateway') {
+                    steps {
+                        dir('services/api-gateway') {
+                            sh 'npm ci'
+                            sh 'npm run lint'
+                            sh 'npm test'
+                        }
+                    }
+                }
+                stage('Auth Service') {
+                    steps {
+                        dir('services/auth-service') {
+                            sh 'npm ci'
+                            sh 'npm run lint'
+                            sh 'npm test'
+                        }
+                    }
+                }
+                stage('Health Checker') {
+                    steps {
+                        dir('services/health-checker') {
+                            sh 'npm ci'
+                            sh 'npm run lint'
+                            sh 'npm test'
+                        }
+                    }
+                }
+                stage('Metrics Collector') {
+                    steps {
+                        dir('services/metrics-collector') {
+                            sh 'npm ci'
+                            sh 'npm run lint'
+                            sh 'npm test'
+                        }
+                    }
+                }
+                stage('Alert Manager') {
+                    steps {
+                        dir('services/alert-manager') {
+                            sh 'npm ci'
+                            sh 'npm run lint'
+                            sh 'npm test'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                script {
+                    def services = ['api-gateway', 'auth-service', 'health-checker', 'metrics-collector', 'alert-manager']
+                    for (svc in services) {
+                        sh """
+                            docker build -t ${ECR_REGISTRY}/pulseboard/${svc}:${IMAGE_TAG} \
+                                -t ${ECR_REGISTRY}/pulseboard/${svc}:latest \
+                                services/${svc}
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Push to ECR') {
+            steps {
+                sh """
+                    aws ecr get-login-password --region ${AWS_REGION} | \
+                        docker login --username AWS --password-stdin ${ECR_REGISTRY}
+                """
+                script {
+                    def services = ['api-gateway', 'auth-service', 'health-checker', 'metrics-collector', 'alert-manager']
+                    for (svc in services) {
+                        sh """
+                            docker push ${ECR_REGISTRY}/pulseboard/${svc}:${IMAGE_TAG}
+                            docker push ${ECR_REGISTRY}/pulseboard/${svc}:latest
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Update K8s Manifests') {
+            steps {
+                script {
+                    def services = ['api-gateway', 'auth-service', 'health-checker', 'metrics-collector', 'alert-manager']
+                    for (svc in services) {
+                        sh """
+                            sed -i 's|image: .*pulseboard/${svc}:.*|image: ${ECR_REGISTRY}/pulseboard/${svc}:${IMAGE_TAG}|' \
+                                k8s/${svc}.yaml
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Deploy to EKS') {
+            steps {
+                sh """
+                    aws eks update-kubeconfig --name ${EKS_CLUSTER} --region ${AWS_REGION}
+                    kubectl apply -f k8s/namespace.yaml
+                    kubectl apply -f k8s/configmap.yaml
+                    kubectl apply -f k8s/secrets.yaml
+                    kubectl apply -f k8s/rbac.yaml
+                    kubectl apply -f k8s/network-policies.yaml
+                    kubectl apply -f k8s/api-gateway.yaml
+                    kubectl apply -f k8s/auth-service.yaml
+                    kubectl apply -f k8s/health-checker.yaml
+                    kubectl apply -f k8s/metrics-collector.yaml
+                    kubectl apply -f k8s/alert-manager.yaml
+                    kubectl apply -f k8s/ingress.yaml
+                    kubectl apply -f k8s/hpa.yaml
+                """
+            }
+        }
+
+        stage('Verify Rollout') {
+            steps {
+                sh """
+                    kubectl rollout status deployment/api-gateway -n ${K8S_NAMESPACE} --timeout=300s
+                    kubectl rollout status deployment/auth-service -n ${K8S_NAMESPACE} --timeout=300s
+                    kubectl rollout status deployment/health-checker -n ${K8S_NAMESPACE} --timeout=300s
+                    kubectl rollout status deployment/metrics-collector -n ${K8S_NAMESPACE} --timeout=300s
+                    kubectl rollout status deployment/alert-manager -n ${K8S_NAMESPACE} --timeout=300s
+                """
+            }
+        }
+
+        stage('Post-Deploy Smoke Test') {
+            steps {
+                sh """
+                    # Wait for services to be ready
+                    sleep 10
+                    
+                    # Check API Gateway health
+                    kubectl exec -n ${K8S_NAMESPACE} deploy/api-gateway -- \
+                        wget --no-verbose --tries=1 --spider http://localhost:8080/health
+                    
+                    # Check all pods are running
+                    kubectl get pods -n ${K8S_NAMESPACE}
+                """
+            }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ PulseBoard deployed successfully! Commit: ${IMAGE_TAG}"
+        }
+        failure {
+            echo "❌ Deployment failed. Rolling back..."
+            sh """
+                kubectl rollout undo deployment/api-gateway -n ${K8S_NAMESPACE} || true
+                kubectl rollout undo deployment/auth-service -n ${K8S_NAMESPACE} || true
+                kubectl rollout undo deployment/health-checker -n ${K8S_NAMESPACE} || true
+                kubectl rollout undo deployment/metrics-collector -n ${K8S_NAMESPACE} || true
+                kubectl rollout undo deployment/alert-manager -n ${K8S_NAMESPACE} || true
+            """
+        }
+        always {
+            cleanWs()
+        }
+    }
+}

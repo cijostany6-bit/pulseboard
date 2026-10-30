@@ -1,0 +1,152 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PulseBoard - CloudWatch Observability (Logs, Metrics, Alarms, Dashboard)'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: pulseboard
+
+Resources:
+  # Log Group for all services
+  PulseBoardLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/pulseboard/${ProjectName}'
+      RetentionInDays: 7
+
+  # Metric Filter for 5xx errors
+  FiveXXMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref PulseBoardLogGroup
+      FilterPattern: '{ $.status >= 500 }'
+      MetricTransformations:
+        - MetricName: FiveXXCount
+          MetricNamespace: !Sub 'PulseBoard/${ProjectName}'
+          MetricValue: '1'
+          DefaultValue: 0
+
+  # Metric Filter for API latency
+  LatencyMetricFilter:
+    Type: AWS::Logs::MetricFilter
+    Properties:
+      LogGroupName: !Ref PulseBoardLogGroup
+      FilterPattern: '{ $.responseTime = * }'
+      MetricTransformations:
+        - MetricName: ApiLatency
+          MetricNamespace: !Sub 'PulseBoard/${ProjectName}'
+          MetricValue: '$.responseTime'
+          DefaultValue: 0
+
+  # Alarm: High 5xx rate
+  High5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-high-5xx-rate'
+      AlarmDescription: 'Triggers when 5xx error rate exceeds threshold'
+      MetricName: FiveXXCount
+      Namespace: !Sub 'PulseBoard/${ProjectName}'
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  # Alarm: High latency
+  HighLatencyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-high-latency'
+      AlarmDescription: 'Triggers when API latency p99 exceeds 1.5s'
+      MetricName: ApiLatency
+      Namespace: !Sub 'PulseBoard/${ProjectName}'
+      Statistic: p99
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 1500
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+
+  # Alarm: Low pod count
+  LowPodCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-low-pod-count'
+      AlarmDescription: 'Triggers when running pod count drops below 2'
+      MetricName: pod_number_of_running_pods
+      Namespace: ContainerInsights
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 2
+      Threshold: 2
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: breaching
+
+  # SNS Topic for alerts
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub '${ProjectName}-alerts'
+      DisplayName: 'PulseBoard Alerts'
+
+  # SNS Subscription (email)
+  AlertSubscription:
+    Type: AWS::SNS::Subscription
+    Properties:
+      TopicArn: !Ref AlertTopic
+      Protocol: email
+      Endpoint: 'cijostany6@gmail.com'
+
+  # CloudWatch Dashboard
+  PulseBoardDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub '${ProjectName}-dashboard'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "5xx Errors",
+                "metrics": [["PulseBoard/${ProjectName}", "FiveXXCount"]],
+                "period": 300,
+                "stat": "Sum",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 0, "width": 12, "height": 6,
+              "properties": {
+                "title": "API Latency (p99)",
+                "metrics": [["PulseBoard/${ProjectName}", "ApiLatency"]],
+                "period": 300,
+                "stat": "p99",
+                "region": "${AWS::Region}"
+              }
+            },
+            {
+              "type": "log",
+              "x": 0, "y": 6, "width": 24, "height": 6,
+              "properties": {
+                "title": "Recent Errors",
+                "query": "SOURCE '/pulseboard/${ProjectName}' | fields @timestamp, @message | filter @message like /ERROR/ | sort @timestamp desc | limit 20",
+                "region": "${AWS::Region}"
+              }
+            }
+          ]
+        }
+
+Outputs:
+  LogGroupName:
+    Description: CloudWatch Log Group name
+    Value: !Ref PulseBoardLogGroup
+  AlertTopicArn:
+    Description: SNS Topic ARN for alerts
+    Value: !Ref AlertTopic
+  DashboardName:
+    Description: CloudWatch Dashboard name
+    Value: !Ref PulseBoardDashboard

@@ -1,0 +1,232 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pulseboard
+  labels:
+    name: pulseboard
+    app.kubernetes.io/part-of: pulseboard
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pulseboard-config
+  namespace: pulseboard
+  labels:
+    app.kubernetes.io/part-of: pulseboard
+data:
+  # Service URLs (internal cluster DNS)
+  API_GATEWAY_URL: "http://api-gateway:8080"
+  AUTH_SERVICE_URL: "http://auth-service:8081"
+  HEALTH_CHECKER_URL: "http://health-checker:8082"
+  METRICS_COLLECTOR_URL: "http://metrics-collector:8083"
+  ALERT_MANAGER_URL: "http://alert-manager:8084"
+  # Redis
+  REDIS_URL: "redis://redis:6379"
+  # PostgreSQL
+  DATABASE_URL: "postgresql://pulseboard:password@postgres:5432/pulseboard"
+  # Environment
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pulseboard-secrets
+  namespace: pulseboard
+  labels:
+    app.kubernetes.io/part-of: pulseboard
+type: Opaque
+stringData:
+  # PLACEHOLDER VALUES - Replace with real secrets via AWS Secrets Manager
+  DB_PASSWORD: "changeme-in-production"
+  JWT_SECRET: "changeme-in-production"
+  SLACK_WEBHOOK_URL: "https://hooks.slack.com/services/PLACEHOLDER"
+  SMTP_PASSWORD: "changeme-in-production"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: pulseboard-sa
+  namespace: pulseboard
+  labels:
+    app.kubernetes.io/part-of: pulseboard
+  annotations:
+    # AWS IAM role for service account (IRSA) - replace with actual role ARN
+    eks.amazonaws.com/role-arn: "arn:aws:iam::ACCOUNT_ID:role/pulseboard-service-role"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pulseboard-role
+  namespace: pulseboard
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "configmaps"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: pulseboard-rolebinding
+  namespace: pulseboard
+subjects:
+  - kind: ServiceAccount
+    name: pulseboard-sa
+    namespace: pulseboard
+roleRef:
+  kind: Role
+  name: pulseboard-role
+  apiGroup: rbac.authorization.k8s.io
+---
+# Network Policies - Default deny all, then allow specific traffic
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: pulseboard
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-gateway-ingress
+  namespace: pulseboard
+spec:
+  podSelector:
+    matchLabels:
+      app: api-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - protocol: TCP
+          port: 8080
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-internal-service-communication
+  namespace: pulseboard
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: pulseboard
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: pulseboard
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/part-of: pulseboard
+    - to:  # Allow DNS
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+    - to:  # Allow external (for health checks)
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+---
+# Ingress
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: pulseboard-ingress
+  namespace: pulseboard
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+spec:
+  tls:
+    - hosts:
+        - pulseboard.example.com
+      secretName: pulseboard-tls
+  rules:
+    - host: pulseboard.example.com
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
+---
+# HPA
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api-gateway-hpa
+  namespace: pulseboard
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api-gateway
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: health-checker-hpa
+  namespace: pulseboard
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: health-checker
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60

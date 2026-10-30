@@ -1,0 +1,150 @@
+# CloudWatch Alarms — PulseBoard
+
+## Alarm Definitions
+
+### 1. High 5xx Error Rate
+
+```yaml
+AlarmName: pulseboard-high-5xx-rate
+MetricName: FiveXXCount
+Namespace: PulseBoard/pulseboard
+Statistic: Sum
+Period: 300  # 5 minutes
+EvaluationPeriods: 2
+Threshold: 10
+ComparisonOperator: GreaterThanThreshold
+TreatMissingData: notBreaching
+Action: SNS → cijostany6@gmail.com
+```
+
+**When it triggers:** More than 10 5xx errors in 5 minutes (sustained for 2 periods = 10 minutes).
+
+**What it means:** Something is broken. Services are returning server errors.
+
+**Response:** Check logs, identify failing service, restart or rollback.
+
+---
+
+### 2. High API Latency (p99)
+
+```yaml
+AlarmName: pulseboard-high-latency
+MetricName: ApiLatency
+Namespace: PulseBoard/pulseboard
+Statistic: p99
+Period: 300
+EvaluationPeriods: 2
+Threshold: 1500  # 1.5 seconds
+ComparisonOperator: GreaterThanThreshold
+TreatMissingData: notBreaching
+Action: SNS → cijostany6@gmail.com
+```
+
+**When it triggers:** p99 latency exceeds 1.5 seconds for 10 minutes.
+
+**What it means:** API is slow. Could be DB, CPU, memory, or external dependency.
+
+**Response:** Check pod resources, DB connections, scale up if needed.
+
+---
+
+### 3. Low Pod Count
+
+```yaml
+AlarmName: pulseboard-low-pod-count
+MetricName: pod_number_of_running_pods
+Namespace: ContainerInsights
+Statistic: Average
+Period: 300
+EvaluationPeriods: 2
+Threshold: 2
+ComparisonOperator: LessThanThreshold
+TreatMissingData: breaching
+Action: SNS → cijostany6@gmail.com
+```
+
+**When it triggers:** Running pod count drops below 2.
+
+**What it means:** Pods are crashing or being evicted. Service may be unavailable.
+
+**Response:** Check pod status, events, resource limits.
+
+---
+
+### 4. High CPU Utilization
+
+```yaml
+AlarmName: pulseboard-high-cpu
+MetricName: node_cpu_utilization
+Namespace: ContainerInsights
+Statistic: Average
+Period: 300
+EvaluationPeriods: 3
+Threshold: 80
+ComparisonOperator: GreaterThanThreshold
+TreatMissingData: notBreaching
+Action: SNS → cijostany6@gmail.com
+```
+
+**When it triggers:** Average CPU utilization exceeds 80% for 15 minutes.
+
+**What it means:** Cluster is under load. HPA should have scaled up. If not, manual intervention needed.
+
+**Response:** Check HPA status, scale manually if needed, investigate load source.
+
+---
+
+### 5. High Memory Utilization
+
+```yaml
+AlarmName: pulseboard-high-memory
+MetricName: node_memory_utilization
+Namespace: ContainerInsights
+Statistic: Average
+Period: 300
+EvaluationPeriods: 3
+Threshold: 85
+ComparisonOperator: GreaterThanThreshold
+TreatMissingData: notBreaching
+Action: SNS → cijostany6@gmail.com
+```
+
+**When it triggers:** Average memory utilization exceeds 85% for 15 minutes.
+
+**What it means:** Memory pressure. Pods may be OOM-killed.
+
+**Response:** Check pod memory usage, increase limits, investigate memory leaks.
+
+---
+
+## Metric Filters
+
+### 5xx Count Filter
+```yaml
+LogGroupName: /pulseboard/pulseboard
+FilterPattern: '{ $.status >= 500 }'
+MetricName: FiveXXCount
+MetricNamespace: PulseBoard/pulseboard
+MetricValue: 1
+DefaultValue: 0
+```
+
+### API Latency Filter
+```yaml
+LogGroupName: /pulseboard/pulseboard
+FilterPattern: '{ $.responseTime = * }'
+MetricName: ApiLatency
+MetricNamespace: PulseBoard/pulseboard
+MetricValue: '$.responseTime'
+DefaultValue: 0
+```
+
+### Error Log Filter
+```yaml
+LogGroupName: /pulseboard/pulseboard
+FilterPattern: 'ERROR'
+MetricName: ErrorCount
+MetricNamespace: PulseBoard/pulseboard
+MetricValue: 1
+DefaultValue: 0
+```

@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PulseBoard - IAM Roles for EKS Service Accounts and Jenkins'
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: pulseboard
+
+Resources:
+  # IAM Role for Jenkins EC2 (instance profile)
+  JenkinsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-jenkins-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser
+      Policies:
+        - PolicyName: EKSAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - eks:DescribeCluster
+                  - eks:ListClusters
+                Resource: '*'
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource: !GetAtt EKSServiceRole.Arn
+
+  JenkinsInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: !Sub '${ProjectName}-jenkins-profile'
+      Roles:
+        - !Ref JenkinsRole
+
+  # IAM Role for EKS service accounts (IRSA)
+  EKSServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-eks-service-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub 'arn:aws:iam::${AWS::AccountId}:oidc-provider/oidc.eks.${AWS::Region}.amazonaws.com/id/CLUSTER_ID'
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                'oidc.eks.${AWS::Region}.amazonaws.com/id/CLUSTER_ID:aud': 'sts.amazonaws.com'
+                'oidc.eks.${AWS::Region}.amazonaws.com/id/CLUSTER_ID:sub': 'system:serviceaccount:pulseboard:pulseboard-sa'
+      Policies:
+        - PolicyName: SecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                  - secretsmanager:DescribeSecret
+                Resource: !Sub 'arn:aws:secretsmanager:${AWS::Region}:${AWS::AccountId}:secret:${ProjectName}/*'
+        - PolicyName: CloudWatchAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                  - cloudwatch:PutMetricData
+                Resource: '*'
+
+Outputs:
+  JenkinsRoleArn:
+    Description: ARN of the Jenkins IAM Role
+    Value: !GetAtt JenkinsRole.Arn
+  JenkinsInstanceProfileName:
+    Description: Name of the Jenkins Instance Profile
+    Value: !Ref JenkinsInstanceProfile
+  EKSServiceRoleArn:
+    Description: ARN of the EKS Service Role (IRSA)
+    Value: !GetAtt EKSServiceRole.Arn

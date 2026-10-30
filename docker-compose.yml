@@ -1,0 +1,177 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: pulseboard-postgres
+    environment:
+      POSTGRES_USER: pulseboard
+      POSTGRES_PASSWORD: pulseboard
+      POSTGRES_DB: pulseboard
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pulseboard"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pulseboard-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: pulseboard-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pulseboard-net
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: pulseboard-auth
+    environment:
+      NODE_ENV: production
+      PORT: 8081
+      DATABASE_URL: postgres://pulseboard:pulseboard@postgres:5432/pulseboard
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: dev-secret-change-me
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8081/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - pulseboard-net
+
+  health-checker:
+    build:
+      context: ./services/health-checker
+      dockerfile: Dockerfile
+    container_name: pulseboard-health
+    environment:
+      NODE_ENV: production
+      PORT: 8082
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "8082:8082"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8082/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - pulseboard-net
+
+  metrics-collector:
+    build:
+      context: ./services/metrics-collector
+      dockerfile: Dockerfile
+    container_name: pulseboard-metrics
+    environment:
+      NODE_ENV: production
+      PORT: 8083
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "8083:8083"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8083/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - pulseboard-net
+
+  alert-manager:
+    build:
+      context: ./services/alert-manager
+      dockerfile: Dockerfile
+    container_name: pulseboard-alerts
+    environment:
+      NODE_ENV: production
+      PORT: 8084
+      REDIS_URL: redis://redis:6379
+    ports:
+      - "8084:8084"
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8084/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - pulseboard-net
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+      dockerfile: Dockerfile
+    container_name: pulseboard-gateway
+    environment:
+      NODE_ENV: production
+      PORT: 8080
+      AUTH_SERVICE_URL: http://auth-service:8081
+      HEALTH_CHECKER_URL: http://health-checker:8082
+      METRICS_COLLECTOR_URL: http://metrics-collector:8083
+      ALERT_MANAGER_URL: http://alert-manager:8084
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - health-checker
+      - metrics-collector
+      - alert-manager
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - pulseboard-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pulseboard-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - api-gateway
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - pulseboard-net
+
+volumes:
+  pgdata:
+
+networks:
+  pulseboard-net:
+    driver: bridge
